@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraction Tug-of-War Competition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;700&display=swap');
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: #f0f9ff;
+            overflow: hidden;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+
+        .rope-container {
+            position: relative;
+            height: 80px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rope {
+            height: 12px;
+            width: 85%;
+            background: #8B4513;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .knot {
+            width: 40px;
+            height: 40px;
+            background: #ef4444;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 4px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .flag {
+            position: absolute;
+            top: -45px;
+            font-size: 2rem;
+        }
+
+        .character {
+            font-size: 6rem;
+            transition: transform 0.3s ease;
+        }
+
+        .fraction-box {
+            background: white;
+            border: 4px solid #3b82f6;
+            border-radius: 1rem;
+            padding: 1rem;
+            width: 120px;
+            text-align: center;
+            box-shadow: 0 6px 0 #1d4ed8;
+        }
+
+        .fraction-line {
+            height: 4px;
+            background: #333;
+            margin: 6px 0;
+            border-radius: 2px;
+        }
+
+        .bottom-dash {
+            height: 55vh;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #e0f2fe;
+            border-top: 8px solid #bae6fd;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-zone {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .big-btn {
+            width: 100%;
+            max-width: 260px;
+            transition: all 0.1s;
+            touch-action: manipulation;
+            font-size: 3rem; /* Larger font for symbols */
+            padding: 0.5rem 0.5rem;
+            border-radius: 1.5rem;
+            font-weight: bold;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .big-btn:active {
+            transform: translateY(4px);
+            box-shadow: none !important;
+        }
+
+        .p1-btn { background-color: #3b82f6; border-bottom: 8px solid #1d4ed8; }
+        .p2-btn { background-color: #f97316; border-bottom: 8px solid #c2410c; }
+
+        .disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .wrong-shake { animation: shake 0.2s ease-in-out 0s 2; }
+    </style>
+</head>
+<body>
+
+    <!-- TOP HALF: Visual Status -->
+    <div class="h-[45vh] flex flex-col justify-center items-center relative p-2 bg-white">
+        <div class="flex justify-between items-center w-full px-16">
+            <div id="p1-char" class="character">🐘</div>
+            <div id="display-fractions" class="flex items-center gap-6">
+                <div class="fraction-box" id="disp-p1">
+                    <div id="p1-num" class="text-4xl font-bold">?</div>
+                    <div class="fraction-line"></div>
+                    <div id="p1-den" class="text-4xl font-bold">?</div>
+                </div>
+                <div class="text-3xl font-black text-gray-300">VS</div>
+                <div class="fraction-box !border-orange-500 !shadow-orange-700" id="disp-p2">
+                    <div id="p2-num" class="text-4xl font-bold">?</div>
+                    <div class="fraction-line"></div>
+                    <div id="p2-den" class="text-4xl font-bold">?</div>
+                </div>
+            </div>
+            <div id="p2-char" class="character">🦒</div>
+        </div>
+
+        <div class="rope-container mt-6">
+            <div class="rope">
+                <div id="knot" class="knot">
+                    <span class="flag">🚩</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="win-message" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 text-6xl font-black text-red-600 drop-shadow-lg text-center bg-white/80 p-8 rounded-3xl">
+            PLAYER 1 WINS!
+        </div>
+    </div>
+
+    <!-- BOTTOM HALF: Controls -->
+    <div class="bottom-dash">
+        <!-- Game Setup -->
+        <div id="setup-screen" class="flex flex-1 flex-col items-center justify-center gap-4">
+            <h2 class="text-3xl font-bold text-blue-900 mb-2">Battle Mode:</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full px-12 max-w-4xl">
+                <button onclick="startGame('denom')" class="px-6 py-6 bg-blue-500 text-white text-xl rounded-2xl border-b-8 border-blue-700 font-bold hover:bg-blue-400">Same Denominator</button>
+                <button onclick="startGame('num')" class="px-6 py-6 bg-purple-500 text-white text-xl rounded-2xl border-b-8 border-purple-700 font-bold hover:bg-purple-400">Same Numerator</button>
+                <button onclick="startGame('mixed')" class="px-6 py-6 bg-emerald-500 text-white text-xl rounded-2xl border-b-8 border-emerald-700 font-bold hover:bg-emerald-400">Mixed Challenge</button>
+            </div>
+        </div>
+
+        <!-- Competition Zones -->
+        <div id="game-screen" class="hidden flex h-full">
+            <div class="control-zone border-r-4 border-blue-200" id="p1-zone">
+                <div class="text-blue-700 font-bold text-xl">Player 1 (Left)</div>
+                <button onclick="playerAction(1, 'left')" class="big-btn p1-btn">&gt;</button>
+                <button onclick="playerAction(1, 'equal')" class="big-btn p1-btn">=</button>
+                <button onclick="playerAction(1, 'right')" class="big-btn p1-btn">&lt;</button>
+            </div>
+
+            <div class="control-zone border-l-4 border-orange-200" id="p2-zone">
+                <div class="text-orange-700 font-bold text-xl">Player 2 (Right)</div>
+                <button onclick="playerAction(2, 'left')" class="big-btn p2-btn">&gt;</button>
+                <button onclick="playerAction(2, 'equal')" class="big-btn p2-btn">=</button>
+                <button onclick="playerAction(2, 'right')" class="big-btn p2-btn">&lt;</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let gameState = {
+            mode: 'denom',
+            pos: 50,
+            p1Frac: { n: 0, d: 0 },
+            p2Frac: { n: 0, d: 0 },
+            roundActive: false,
+            winner: null
+        };
+
+        const knot = document.getElementById('knot');
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const winMsg = document.getElementById('win-message');
+
+        function startGame(mode) {
+            gameState.mode = mode;
+            gameState.pos = 50;
+            gameState.winner = null;
+            updateRope();
+            setupScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            winMsg.classList.add('hidden');
+            nextRound();
+        }
+
+        function nextRound() {
+            if (gameState.winner) return;
+            
+            gameState.roundActive = true;
+            document.querySelectorAll('.big-btn').forEach(b => b.classList.remove('disabled'));
+            
+            let currentSubMode = gameState.mode;
+            if (gameState.mode === 'mixed') {
+                currentSubMode = Math.random() > 0.5 ? 'denom' : 'num';
+            }
+
+            if (currentSubMode === 'denom') {
+                const commonDen = Math.floor(Math.random() * 11) + 2; 
+                gameState.p1Frac = { n: Math.floor(Math.random() * commonDen) + 1, d: commonDen };
+                gameState.p2Frac = { n: Math.floor(Math.random() * commonDen) + 1, d: commonDen };
+            } else {
+                const commonNum = Math.floor(Math.random() * 9) + 1;
+                gameState.p1Frac = { n: commonNum, d: Math.floor(Math.random() * 11) + 2 };
+                gameState.p2Frac = { n: commonNum, d: Math.floor(Math.random() * 11) + 2 };
+            }
+
+            document.getElementById('p1-num').innerText = gameState.p1Frac.n;
+            document.getElementById('p1-den').innerText = gameState.p1Frac.d;
+            document.getElementById('p2-num').innerText = gameState.p2Frac.n;
+            document.getElementById('p2-den').innerText = gameState.p2Frac.d;
+        }
+
+        function playerAction(playerId, choice) {
+            if (!gameState.roundActive || gameState.winner) return;
+
+            const val1 = gameState.p1Frac.n / gameState.p1Frac.d;
+            const val2 = gameState.p2Frac.n / gameState.p2Frac.d;
+            
+            let result = 'equal';
+            if (val1 > val2 + 0.0001) result = 'left';
+            else if (val2 > val1 + 0.0001) result = 'right';
+
+            if (choice === result) {
+                gameState.roundActive = false;
+                document.querySelectorAll('.big-btn').forEach(b => b.classList.add('disabled'));
+                
+                if (playerId === 1) gameState.pos -= 8;
+                else gameState.pos += 8;
+                
+                updateRope();
+                
+                if (!checkWin()) {
+                    setTimeout(nextRound, 600);
+                }
+            } else {
+                const zone = document.getElementById(`p${playerId}-zone`);
+                zone.classList.add('wrong-shake');
+                const buttons = zone.querySelectorAll('.big-btn');
+                buttons.forEach(b => b.classList.add('disabled'));
+                
+                setTimeout(() => {
+                    zone.classList.remove('wrong-shake');
+                    if (gameState.roundActive) {
+                        buttons.forEach(b => b.classList.remove('disabled'));
+                    }
+                }, 1000);
+            }
+        }
+
+        function updateRope() {
+            knot.style.left = gameState.pos + '%';
+            const p1 = document.getElementById('p1-char');
+            const p2 = document.getElementById('p2-char');
+            
+            p1.style.transform = `scaleX(-1) translateX(${(50-gameState.pos)*2}px)`;
+            p2.style.transform = `translateX(${(gameState.pos-50)*2}px)`;
+        }
+
+        function checkWin() {
+            if (gameState.pos <= 15) {
+                endGame("PLAYER 1 WINS!");
+                return true;
+            } else if (gameState.pos >= 85) {
+                endGame("PLAYER 2 WINS!");
+                return true;
+            }
+            return false;
+        }
+
+        function endGame(msg) {
+            gameState.winner = msg;
+            winMsg.innerText = msg;
+            winMsg.classList.remove('hidden');
+            setTimeout(() => {
+                setupScreen.classList.remove('hidden');
+                gameScreen.classList.add('hidden');
+                winMsg.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

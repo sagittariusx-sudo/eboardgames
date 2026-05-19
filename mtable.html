@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Multiplication Tug of War</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            overflow: hidden;
+            touch-action: manipulation;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a202c;
+        }
+        
+        /* Top half: The Tug of War Visual */
+        .battleground {
+            height: 40vh;
+            position: relative;
+            background: linear-gradient(to bottom, #2d3748, #1a202c);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 4px solid #4a5568;
+        }
+
+        .rope-path {
+            position: absolute;
+            width: 90%;
+            height: 12px;
+            background: #744210;
+            border-radius: 6px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .flag {
+            position: absolute;
+            width: 40px;
+            height: 60px;
+            background: #f6e05e;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 4px;
+            border: 3px solid #d69e2e;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .win-zone {
+            position: absolute;
+            height: 100%;
+            width: 5%;
+            opacity: 0.3;
+        }
+
+        /* Bottom half: Split Controls */
+        .controls-container {
+            height: 60vh;
+            display: flex;
+        }
+
+        .player-side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            padding: 1rem;
+            transition: background-color 0.2s;
+        }
+
+        .player-1 { border-right: 2px solid #4a5568; }
+
+        .display-box {
+            text-align: center;
+            color: white;
+        }
+
+        .question-text {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-box {
+            height: 3.5rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fbd38d;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            width: 100%;
+            max-width: 280px;
+            margin: 0 auto;
+        }
+
+        .num-btn {
+            aspect-ratio: 1 / 0.8;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .num-btn:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.95);
+        }
+
+        .enter-btn { background: #38a169; }
+        .clear-btn { background: #e53e3e; }
+
+        .correct-flash { background-color: #2f855a !important; }
+        .wrong-flash { background-color: #9b2c2c !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Visual Battle Area -->
+    <div class="battleground">
+        <div class="win-zone left-0 bg-blue-500" style="left: 0;"></div>
+        <div class="win-zone right-0 bg-red-500" style="right: 0;"></div>
+        
+        <div class="rope-path">
+            <div id="flag" class="flag">VS</div>
+        </div>
+
+        <div class="absolute top-4 left-8 text-blue-400 font-bold">PLAYER 1</div>
+        <div class="absolute top-4 right-8 text-red-400 font-bold">PLAYER 2</div>
+    </div>
+
+    <!-- Controls Area -->
+    <div class="controls-container">
+        <!-- Player 1: Bottom Left -->
+        <div id="p1-side" class="player-side player-1 bg-blue-900/40">
+            <div class="display-box">
+                <div id="p1-question" class="question-text"></div>
+                <div id="p1-input" class="input-box"></div>
+            </div>
+            <div class="numpad">
+                <div class="num-btn" onclick="press(1, '1')">1</div>
+                <div class="num-btn" onclick="press(1, '2')">2</div>
+                <div class="num-btn" onclick="press(1, '3')">3</div>
+                <div class="num-btn" onclick="press(1, '4')">4</div>
+                <div class="num-btn" onclick="press(1, '5')">5</div>
+                <div class="num-btn" onclick="press(1, '6')">6</div>
+                <div class="num-btn" onclick="press(1, '7')">7</div>
+                <div class="num-btn" onclick="press(1, '8')">8</div>
+                <div class="num-btn" onclick="press(1, '9')">9</div>
+                <div class="num-btn clear-btn" onclick="press(1, 'C')">C</div>
+                <div class="num-btn" onclick="press(1, '0')">0</div>
+                <div class="num-btn enter-btn" onclick="press(1, 'E')">OK</div>
+            </div>
+        </div>
+
+        <!-- Player 2: Bottom Right -->
+        <div id="p2-side" class="player-side bg-red-900/40">
+            <div class="display-box">
+                <div id="p2-question" class="question-text"></div>
+                <div id="p2-input" class="input-box"></div>
+            </div>
+            <div class="numpad">
+                <div class="num-btn" onclick="press(2, '1')">1</div>
+                <div class="num-btn" onclick="press(2, '2')">2</div>
+                <div class="num-btn" onclick="press(2, '3')">3</div>
+                <div class="num-btn" onclick="press(2, '4')">4</div>
+                <div class="num-btn" onclick="press(2, '5')">5</div>
+                <div class="num-btn" onclick="press(2, '6')">6</div>
+                <div class="num-btn" onclick="press(2, '7')">7</div>
+                <div class="num-btn" onclick="press(2, '8')">8</div>
+                <div class="num-btn" onclick="press(2, '9')">9</div>
+                <div class="num-btn clear-btn" onclick="press(2, 'C')">C</div>
+                <div class="num-btn" onclick="press(2, '0')">0</div>
+                <div class="num-btn enter-btn" onclick="press(2, 'E')">OK</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory Screen -->
+    <div id="victory-screen" class="hidden fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center text-white">
+        <div id="victory-text" class="text-6xl font-black mb-8 italic text-center px-4">PLAYER 1 WINS!</div>
+        <button onclick="initGame()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-10 py-4 rounded-xl text-2xl font-bold transition-all transform active:scale-90">REMATCH</button>
+    </div>
+
+    <script>
+        let state = {
+            p1: { q: {a:0, b:0, ans:0}, val: "" },
+            p2: { q: {a:0, b:0, ans:0}, val: "" },
+            pos: 50, // 50 is center
+            active: true
+        };
+
+        const STEP = 7; 
+
+        function genQ() {
+            const a = Math.floor(Math.random() * 10) + 1;
+            const b = Math.floor(Math.random() * 10) + 1;
+            return { a, b, ans: a * b };
+        }
+
+        function updateUI() {
+            document.getElementById('p1-question').textContent = `${state.p1.q.a} × ${state.p1.q.b}`;
+            document.getElementById('p2-question').textContent = `${state.p2.q.a} × ${state.p2.q.b}`;
+            document.getElementById('p1-input').textContent = state.p1.val;
+            document.getElementById('p2-input').textContent = state.p2.val;
+            
+            // Map 0-100 pos to 5% - 95% on screen to stay within rope container
+            const visualPos = 5 + (state.pos * 0.9);
+            document.getElementById('flag').style.left = `${visualPos}%`;
+        }
+
+        function flash(pNum, type) {
+            const el = document.getElementById(`p${pNum}-side`);
+            const className = type === 'success' ? 'correct-flash' : 'wrong-flash';
+            el.classList.add(className);
+            setTimeout(() => el.classList.remove(className), 150);
+        }
+
+        function press(pNum, key) {
+            if (!state.active) return;
+            const p = state[`p${pNum}`];
+
+            if (key === 'C') {
+                p.val = "";
+            } else if (key === 'E') {
+                if (p.val !== "" && parseInt(p.val) === p.q.ans) {
+                    // Pull rope (P1 pulls left, P2 pulls right)
+                    state.pos += (pNum === 1 ? -STEP : STEP);
+                    p.q = genQ();
+                    p.val = "";
+                    flash(pNum, 'success');
+                    checkWin();
+                } else {
+                    p.val = "";
+                    flash(pNum, 'error');
+                }
+            } else {
+                if (p.val.length < 3) p.val += key;
+            }
+            updateUI();
+        }
+
+        function checkWin() {
+            if (state.pos <= 0) {
+                state.pos = 0;
+                endGame("PLAYER 1");
+            } else if (state.pos >= 100) {
+                state.pos = 100;
+                endGame("PLAYER 2");
+            }
+        }
+
+        function endGame(winner) {
+            state.active = false;
+            document.getElementById('victory-text').textContent = winner + " WINS!";
+            document.getElementById('victory-screen').classList.remove('hidden');
+        }
+
+        function initGame() {
+            state = {
+                p1: { q: genQ(), val: "" },
+                p2: { q: genQ(), val: "" },
+                pos: 50,
+                active: true
+            };
+            document.getElementById('victory-screen').classList.add('hidden');
+            updateUI();
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>

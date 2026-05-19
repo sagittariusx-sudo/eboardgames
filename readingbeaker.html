@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>量杯大對決 (電子白板版)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 和 ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel CDN 用於在瀏覽器中解析 JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 防止白板長按觸發右鍵選單 */
+    body {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans overflow-hidden">
+
+  <div id="root"></div>
+
+  <!-- React 程式碼寫在下方 -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- 內嵌式 SVG 圖標組件 (替代 lucide-react) ---
+    const TrophyIcon = ({ size = 24, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+        <path d="M4 22h16" />
+        <path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34" />
+        <path d="M12 2a6.38 6.38 0 0 1 6 6.5c0 3.3-2.7 6.3-6 6.5-3.3-.2-6-3.2-6-6.5A6.38 6.38 0 0 1 12 2z" />
+      </svg>
+    );
+
+    const RefreshIcon = ({ size = 16, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+        <path d="M21 3v5h-5" />
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+        <path d="M3 21v-5h5" />
+      </svg>
+    );
+
+    const Volume2Icon = ({ size = 20, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </svg>
+    );
+
+    const VolumeXIcon = ({ size = 20, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <line x1="22" y1="9" x2="16" y2="15" />
+        <line x1="16" y1="9" x2="22" y2="15" />
+      </svg>
+    );
+
+    const SparklesIcon = ({ size = 14, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+        <path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5z" />
+        <path d="M19 17l1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" />
+      </svg>
+    );
+
+    // --- 音效生成器 (Web Audio API) ---
+    const playSound = (type) => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        if (type === 'correct') {
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc1.type = 'triangle';
+          osc2.type = 'sine';
+          
+          osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+          osc1.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+          osc2.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.1); // C6
+          
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+          
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc1.start();
+          osc2.start();
+          osc1.stop(ctx.currentTime + 0.3);
+          osc2.stop(ctx.currentTime + 0.3);
+        } else if (type === 'wrong') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.25);
+          
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.start();
+          osc.stop(ctx.currentTime + 0.3);
+        } else if (type === 'victory') {
+          const notes = [523.25, 659.25, 783.99, 1046.50];
+          notes.forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.1);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime + index * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + index * 0.1 + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + index * 0.1);
+            osc.stop(ctx.currentTime + index * 0.1 + 0.35);
+          });
+        }
+      } catch (e) {
+        console.error("Audio error:", e);
+      }
+    };
+
+    // --- 遊戲配置參數 ---
+    const CAPACITIES_POOL = [
+      { value: 100, unit: 'mL', ticks: [5, 10] },
+      { value: 200, unit: 'mL', ticks: [4, 5, 10] },
+      { value: 500, unit: 'mL', ticks: [5, 10] },
+      { value: 1000, unit: 'mL', ticks: [4, 5, 8, 10] },
+      { value: 2000, unit: 'mL', ticks: [4, 5, 10] },
+      { value: 3000, unit: 'mL', ticks: [5, 6] },
+      { value: 5000, unit: 'mL', ticks: [5, 10] },
+    ];
+
+    // --- 題目生成邏輯 ---
+    const generateQuestion = (difficulty) => {
+      const numCups = (difficulty === 'high' && Math.random() > 0.4) ? 2 : 1;
+      const cups = [];
+      let totalML = 0;
+      
+      for (let i = 0; i < numCups; i++) {
+        let pool = CAPACITIES_POOL;
+        if (difficulty === 'low') {
+          pool = CAPACITIES_POOL.filter(c => c.value <= 1000);
+        }
+        
+        const baseCup = pool[Math.floor(Math.random() * pool.length)];
+        let ticksCount = baseCup.ticks[Math.floor(Math.random() * baseCup.ticks.length)];
+        if (difficulty === 'low') {
+          const easyTicks = baseCup.ticks.filter(t => t === 5 || t === 10);
+          ticksCount = easyTicks.length > 0 ? easyTicks[Math.floor(Math.random() * easyTicks.length)] : baseCup.ticks[0];
+        }
+        
+        const tickIndex = Math.floor(Math.random() * ticksCount) + 1;
+        const perTickValue = baseCup.value / ticksCount;
+        const waterLevel = tickIndex * perTickValue;
+        
+        let displayUnit = 'mL';
+        if (difficulty !== 'low' && baseCup.value >= 1000 && Math.random() > 0.5) {
+          displayUnit = 'L';
+        }
+        
+        cups.push({
+          capacity: baseCup.value,
+          ticks: ticksCount,
+          waterLevel: waterLevel,
+          displayUnit: displayUnit,
+          perTick: perTickValue
+        });
+        
+        totalML += waterLevel;
+      }
+      
+      let targetUnit = 'mL';
+      if (difficulty === 'low') {
+        targetUnit = 'mL';
+      } else if (difficulty === 'medium') {
+        const hasLUnit = cups.some(c => c.displayUnit === 'L');
+        targetUnit = hasLUnit ? 'mL' : (Math.random() > 0.5 ? 'L' : 'mL');
+      } else {
+        targetUnit = Math.random() > 0.5 ? 'L' : 'mL';
+      }
+      
+      let correctValue = totalML;
+      if (targetUnit === 'L') {
+        correctValue = totalML / 1000;
+      }
+      
+      const correctText = formatAnswer(correctValue, targetUnit);
+      const options = new Set();
+      options.add(correctText);
+      
+      while (options.size < 4) {
+        let wrongVal = correctValue;
+        const offsetType = Math.floor(Math.random() * 4);
+        
+        if (offsetType === 0) {
+          const scale = cups[0].perTick / (targetUnit === 'L' ? 1000 : 1);
+          const direction = Math.random() > 0.5 ? 1 : -1;
+          wrongVal = correctValue + direction * scale * (Math.floor(Math.random() * 2) + 1);
+        } else if (offsetType === 1) {
+          if (targetUnit === 'mL') {
+            wrongVal = correctValue / 1000;
+          } else {
+            wrongVal = correctValue * 1000;
+          }
+        } else if (offsetType === 2) {
+          let totalCapacity = cups.reduce((sum, c) => sum + c.capacity, 0);
+          if (targetUnit === 'L') totalCapacity /= 1000;
+          wrongVal = totalCapacity - correctValue;
+        } else {
+          const multiplier = Math.random() > 0.5 ? 1.5 : 0.5;
+          wrongVal = correctValue * multiplier;
+        }
+        
+        if (wrongVal > 0 && wrongVal !== correctValue) {
+          options.add(formatAnswer(wrongVal, targetUnit));
+        }
+      }
+      
+      const shuffledOptions = Array.from(options).sort(() => Math.random() - 0.5);
+      
+      return {
+        cups,
+        correctAnswer: correctText,
+        options: shuffledOptions,
+        targetUnit,
+        totalML
+      };
+    };
+
+    const formatAnswer = (val, unit) => {
+      if (unit === 'L') {
+        const formatted = parseFloat(val.toFixed(3));
+        return `${formatted} L`;
+      } else {
+        return `${Math.round(val)} mL`;
+      }
+    };
+
+    // --- 量杯 SVG 繪製組件 ---
+    const MeasuringCupSVG = ({ capacity, ticks, waterLevel, displayUnit }) => {
+      const width = 140;
+      const height = 220;
+      const padding = 20;
+      
+      const cupTopY = padding;
+      const cupBottomY = height - padding;
+      const cupLeftX = 35;
+      const cupRightX = width - 35;
+      const cupHeight = cupBottomY - cupTopY;
+      const cupWidth = cupRightX - cupLeftX;
+      
+      const fillRatio = waterLevel / capacity;
+      const waterY = cupBottomY - (cupHeight * fillRatio);
+      
+      const tickElements = [];
+      const perTickValue = capacity / ticks;
+      
+      for (let i = 0; i <= ticks; i++) {
+        const tickVal = i * perTickValue;
+        const y = cupBottomY - (cupHeight * (i / ticks));
+        const isMajor = i % 5 === 0 || i === ticks || ticks < 8;
+        const tickLength = isMajor ? 12 : 7;
+        
+        tickElements.push(
+          <line 
+            key={`tick-${i}`} 
+            x1={cupRightX - tickLength} 
+            y1={y} 
+            x2={cupRightX} 
+            y2={y} 
+            stroke="#4B5563" 
+            strokeWidth={isMajor ? 2.5 : 1.5} 
+          />
+        );
+        
+        if (isMajor && i > 0) {
+          let labelText = tickVal;
+          if (displayUnit === 'L') {
+            labelText = parseFloat((tickVal / 1000).toFixed(2));
+          }
+          
+          tickElements.push(
+            <text 
+              key={`text-${i}`} 
+              x={cupRightX + 4} 
+              y={y + 4} 
+              fontSize="10" 
+              fontWeight="bold"
+              fill="#374151"
+              className="select-none font-mono"
+            >
+              {labelText}
+            </text>
+          );
+        }
+      }
+
+      return (
+        <div className="flex flex-col items-center">
+          <span className="text-sm font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full mb-1 border border-gray-200 shadow-sm">
+            最大容量: {displayUnit === 'L' ? `${capacity/1000} L` : `${capacity} mL`}
+          </span>
+          
+          <svg width={width + 30} height={height} className="drop-shadow-md">
+            <defs>
+              <linearGradient id="cupGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#f3f4f6" stopOpacity="0.8" />
+                <stop offset="20%" stopColor="#ffffff" stopOpacity="0.9" />
+                <stop offset="80%" stopColor="#f3f4f6" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#e5e7eb" stopOpacity="0.8" />
+              </linearGradient>
+              <linearGradient id="waterGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.85" />
+                <stop offset="70%" stopColor="#3b82f6" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.8" />
+              </linearGradient>
+            </defs>
+            
+            {waterLevel > 0 && (
+              <g>
+                <rect 
+                  x={cupLeftX} 
+                  y={waterY} 
+                  width={cupWidth} 
+                  height={cupBottomY - waterY} 
+                  fill="url(#waterGrad)"
+                  rx="1"
+                />
+                <ellipse 
+                  cx={cupLeftX + cupWidth/2} 
+                  cy={waterY} 
+                  rx={cupWidth/2} 
+                  ry="5" 
+                  fill="#93c5fd" 
+                  opacity="0.8"
+                />
+                <circle cx={cupLeftX + 20} cy={cupBottomY - 15} r="2" fill="#ffffff" opacity="0.5" />
+                <circle cx={cupLeftX + cupWidth - 25} cy={cupBottomY - 35} r="3" fill="#ffffff" opacity="0.4" />
+                <circle cx={cupLeftX + cupWidth/2 - 10} cy={waterY + 15} r="1.5" fill="#ffffff" opacity="0.6" />
+              </g>
+            )}
+            
+            <path 
+              d={`M ${cupLeftX} ${cupTopY} 
+                 L ${cupLeftX} ${cupBottomY - 5} 
+                 Q ${cupLeftX} ${cupBottomY} ${cupLeftX + 5} ${cupBottomY} 
+                 L ${cupRightX - 5} ${cupBottomY} 
+                 Q ${cupRightX} ${cupBottomY} ${cupRightX} ${cupBottomY - 5} 
+                 L ${cupRightX} ${cupTopY}`} 
+              fill="url(#cupGrad)" 
+              stroke="#9ca3af" 
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.85"
+            />
+            
+            <path 
+              d={`M ${cupLeftX} ${cupTopY + 30} 
+                 C ${cupLeftX - 25} ${cupTopY + 30} ${cupLeftX - 25} ${cupBottomY - 40} ${cupLeftX} ${cupBottomY - 40}`} 
+              fill="none" 
+              stroke="#9ca3af" 
+              strokeWidth="8" 
+              strokeLinecap="round"
+              opacity="0.7"
+            />
+            
+            {tickElements}
+            
+            <line x1={cupLeftX + 6} y1={cupTopY + 5} x2={cupLeftX + 6} y2={cupBottomY - 6} stroke="#ffffff" strokeWidth="2.5" opacity="0.6" />
+            <line x1={cupRightX - 6} y1={cupTopY + 5} x2={cupRightX - 6} y2={cupBottomY - 6} stroke="#d1d5db" strokeWidth="1.5" opacity="0.5" />
+          </svg>
+        </div>
+      );
+    };
+
+    // --- 主遊戲組件 ---
+    function App() {
+      const [gameState, setGameState] = useState('menu');
+      const [difficulty, setDifficulty] = useState('medium');
+      const [soundEnabled, setSoundEnabled] = useState(true);
+      
+      const [p1Score, setP1Score] = useState(0);
+      const [p2Score, setP2Score] = useState(0);
+      const [p1Question, setP1Question] = useState(null);
+      const [p2Question, setP2Question] = useState(null);
+      
+      const [p1Locked, setP1Locked] = useState(false);
+      const [p2Locked, setP2Locked] = useState(false);
+      const [p1Feedback, setP1Feedback] = useState(null);
+      const [p2Feedback, setP2Feedback] = useState(null);
+      
+      const [winner, setWinner] = useState(null);
+
+      const initGame = (selectedDiff = difficulty) => {
+        setP1Score(0);
+        setP2Score(0);
+        setP1Feedback(null);
+        setP2Feedback(null);
+        setP1Locked(false);
+        setP2Locked(false);
+        setWinner(null);
+        
+        setP1Question(generateQuestion(selectedDiff));
+        setP2Question(generateQuestion(selectedDiff));
+        setGameState('playing');
+      };
+
+      useEffect(() => {
+        if (gameState === 'playing') {
+          if (p1Score >= 5) {
+            setWinner('紅隊玩家 (左側)');
+            setGameState('gameOver');
+            if (soundEnabled) playSound('victory');
+          } else if (p2Score >= 5) {
+            setWinner('藍隊玩家 (右側)');
+            setGameState('gameOver');
+            if (soundEnabled) playSound('victory');
+          }
+        }
+      }, [p1Score, p2Score, gameState]);
+
+      const handleAnswer = (player, selectedOption) => {
+        if (player === 1) {
+          if (p1Locked) return;
+          
+          const isCorrect = selectedOption === p1Question.correctAnswer;
+          if (isCorrect) {
+            if (soundEnabled) playSound('correct');
+            setP1Feedback('correct');
+            setP1Locked(true);
+            setTimeout(() => {
+              setP1Score(prev => prev + 1);
+              setP1Question(generateQuestion(difficulty));
+              setP1Feedback(null);
+              setP1Locked(false);
+            }, 800);
+          } else {
+            if (soundEnabled) playSound('wrong');
+            setP1Feedback('wrong');
+            setP1Locked(true);
+            setTimeout(() => {
+              setP1Question(generateQuestion(difficulty));
+              setP1Feedback(null);
+              setP1Locked(false);
+            }, 1200);
+          }
+        } else {
+          if (p2Locked) return;
+          
+          const isCorrect = selectedOption === p2Question.correctAnswer;
+          if (isCorrect) {
+            if (soundEnabled) playSound('correct');
+            setP2Feedback('correct');
+            setP2Locked(true);
+            setTimeout(() => {
+              setP2Score(prev => prev + 1);
+              setP2Question(generateQuestion(difficulty));
+              setP2Feedback(null);
+              setP2Locked(false);
+            }, 800);
+          } else {
+            if (soundEnabled) playSound('wrong');
+            setP2Feedback('wrong');
+            setP2Locked(true);
+            setTimeout(() => {
+              setP2Question(generateQuestion(difficulty));
+              setP2Feedback(null);
+              setP2Locked(false);
+            }, 1200);
+          }
+        }
+      };
+
+      return (
+        <div className="flex flex-col h-screen w-full bg-slate-900 text-slate-100 font-sans overflow-hidden select-none">
+          
+          {/* 頂部共同控制與狀態列 */}
+          <header className="flex items-center justify-between px-6 py-3 bg-slate-800 border-b border-slate-700 shadow-md h-16 z-10 shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 flex items-center gap-2">
+                💧 量杯大對決 <span className="text-xs bg-slate-700 text-slate-300 font-medium px-2 py-0.5 rounded border border-slate-600">電子白板版</span>
+              </span>
+            </div>
+
+            {gameState === 'playing' && (
+              <div className="flex items-center gap-8 px-6 py-1 bg-slate-900 rounded-full border border-slate-700 shadow-inner">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                  <span className="font-bold text-red-400">紅隊: <span className="text-xl font-black text-white">{p1Score}</span> / 5</span>
+                </div>
+                <div className="text-slate-500 font-bold">VS</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-blue-400">藍隊: <span className="text-xl font-black text-white">{p2Score}</span> / 5</span>
+                  <span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 transition-colors border border-slate-600 shadow"
+                title={soundEnabled ? "關閉聲音" : "開啟聲音"}
+              >
+                {soundEnabled ? <Volume2Icon size={20} /> : <VolumeXIcon size={20} />}
+              </button>
+              
+              {gameState === 'playing' && (
+                <button 
+                  onClick={() => setGameState('menu')}
+                  className="flex items-center gap-1 px-3 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg transition-colors border border-amber-400 shadow"
+                >
+                  <RefreshIcon size={16} />
+                  主選單
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* 遊戲主畫面區域 */}
+          <main className="flex-1 w-full relative overflow-hidden bg-slate-950">
+            
+            {/* 1. 開始選單 */}
+            {gameState === 'menu' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 z-20">
+                <div className="absolute w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-3xl -top-20 left-1/4"></div>
+                <div className="absolute w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-3xl -bottom-20 right-1/4"></div>
+                
+                <div className="max-w-xl w-full bg-slate-900/90 backdrop-blur border-2 border-slate-700 rounded-3xl p-8 shadow-2xl text-center relative z-10">
+                  <div className="inline-flex p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg mb-4 text-white">
+                    <TrophyIcon size={48} className="animate-bounce" />
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-black mb-2 text-white tracking-wide">
+                    電子白板：量杯大對決
+                  </h1>
+                  <p className="text-slate-400 text-sm md:text-base mb-8 leading-relaxed">
+                    兩位同學並排站在電子白板前作答，各自擁有專屬題目。<br/>
+                    最快答對 5 題的同學即獲得勝利！按鈕都貼心地放在螢幕最下方喔！
+                  </p>
+
+                  <div className="mb-8">
+                    <span className="block text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider">選擇遊戲難度</span>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[
+                        { id: 'low', label: '低難度 (初學)', desc: '單杯、簡單刻度、整數讀數', color: 'border-green-500 text-green-400 hover:bg-green-500/10' },
+                        { id: 'medium', label: '中難度 (進階)', desc: '單杯、生活刻度、單位換算', color: 'border-amber-500 text-amber-400 hover:bg-amber-500/10' },
+                        { id: 'high', label: '高難度 (挑戰)', desc: '雙杯裝水、複雜單位、換算', color: 'border-red-500 text-red-400 hover:bg-red-500/10' }
+                      ].map((diff) => (
+                        <button
+                          key={diff.id}
+                          onClick={() => setDifficulty(diff.id)}
+                          className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${diff.color} ${
+                            difficulty === diff.id 
+                              ? 'bg-slate-800 ring-4 ring-offset-2 ring-offset-slate-900 ' + (diff.id === 'low' ? 'ring-green-500' : diff.id === 'medium' ? 'ring-amber-500' : 'ring-red-500')
+                              : 'opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <span className="font-bold text-lg mb-1">{diff.label}</span>
+                          <span className="text-[10px] text-slate-400 leading-tight">{diff.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => initGame()}
+                    className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xl rounded-2xl shadow-lg hover:shadow-orange-500/20 active:scale-95 transition-all uppercase tracking-wide border-b-4 border-orange-700"
+                  >
+                    開始雙人對決！
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 2. 對戰進行中 (左右分屏) */}
+            {gameState === 'playing' && p1Question && p2Question && (
+              <div className="absolute inset-0 flex h-full w-full">
+                
+                {/* ==================== 左側：紅隊玩家 ==================== */}
+                <div className={`w-1/2 h-full flex flex-col border-r-2 border-dashed border-slate-700 relative transition-colors duration-300 ${
+                  p1Feedback === 'correct' ? 'bg-green-950/40' : p1Feedback === 'wrong' ? 'bg-red-950/40' : 'bg-slate-900/40'
+                }`}>
+                  {p1Feedback && (
+                    <div className="absolute inset-x-0 top-0 h-40 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm z-10 border-b border-slate-800">
+                      {p1Feedback === 'correct' ? (
+                        <div className="text-center">
+                          <span className="text-5xl">✅</span>
+                          <p className="text-green-400 font-black text-xl mt-1">太棒了！加 1 分！</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <span className="text-5xl">❌</span>
+                          <p className="text-red-400 font-black text-xl mt-1">答錯了，再試試別題！</p>
+                          <p className="text-xs text-slate-500 mt-0.5">鎖定中...下一題即將載入</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 overflow-y-auto mb-28">
+                    <div className="text-center mb-2">
+                      <span className="px-3 py-1 bg-red-500/20 text-red-400 font-extrabold rounded-full border border-red-500/30 text-xs tracking-wider">
+                        🔴 紅隊玩家
+                      </span>
+                      <h3 className="text-lg font-black mt-2 text-slate-200">
+                        量杯裡有多少水？ (請用 <span className="text-amber-400 underline font-black text-xl">{p1Question.targetUnit}</span> 表示)
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-6 mt-2 flex-wrap max-w-full">
+                      {p1Question.cups.map((cup, idx) => (
+                        <div key={idx} className="relative">
+                          {p1Question.cups.length > 1 && (
+                            <span className="absolute -top-3 -left-3 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-md">
+                              {idx + 1}
+                            </span>
+                          )}
+                          <MeasuringCupSVG 
+                            capacity={cup.capacity} 
+                            ticks={cup.ticks} 
+                            waterLevel={cup.waterLevel} 
+                            displayUnit={cup.displayUnit} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {p1Question.cups.length > 1 && (
+                      <div className="mt-2 text-xs font-bold text-slate-400 bg-slate-800/80 px-4 py-1.5 rounded-full border border-slate-700 flex items-center gap-2">
+                        <SparklesIcon size={14} className="text-amber-400" />
+                        請把 {p1Question.cups.length} 個量杯的水量相加喔！
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-0 inset-x-0 bg-slate-900/90 backdrop-blur p-4 border-t border-slate-800 h-28 flex items-center justify-center">
+                    <div className="grid grid-cols-4 gap-2 w-full max-w-xl">
+                      {p1Question.options.map((option, idx) => (
+                        <button
+                          key={idx}
+                          disabled={p1Locked}
+                          onClick={() => handleAnswer(1, option)}
+                          className={`h-16 rounded-xl font-bold text-base md:text-lg border-2 shadow-md transition-all active:scale-95 duration-100 flex items-center justify-center ${
+                            p1Locked 
+                              ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                              : 'bg-red-950/40 hover:bg-red-900/30 border-red-500/50 text-red-200 hover:border-red-400 active:bg-red-500 active:text-slate-950'
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ==================== 右側：藍隊玩家 ==================== */}
+                <div className={`w-1/2 h-full flex flex-col relative transition-colors duration-300 ${
+                  p2Feedback === 'correct' ? 'bg-green-950/40' : p2Feedback === 'wrong' ? 'bg-red-950/40' : 'bg-slate-900/40'
+                }`}>
+                  {p2Feedback && (
+                    <div className="absolute inset-x-0 top-0 h-40 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm z-10 border-b border-slate-800">
+                      {p2Feedback === 'correct' ? (
+                        <div className="text-center">
+                          <span className="text-5xl">✅</span>
+                          <p className="text-green-400 font-black text-xl mt-1">太棒了！加 1 分！</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <span className="text-5xl">❌</span>
+                          <p className="text-red-400 font-black text-xl mt-1">答錯了，再試試別題！</p>
+                          <p className="text-xs text-slate-500 mt-0.5">鎖定中...下一題即將載入</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0 overflow-y-auto mb-28">
+                    <div className="text-center mb-2">
+                      <span className="px-3 py-1 bg-blue-500/20 text-blue-400 font-extrabold rounded-full border border-blue-500/30 text-xs tracking-wider">
+                        🔵 藍隊玩家
+                      </span>
+                      <h3 className="text-lg font-black mt-2 text-slate-200">
+                        量杯裡有多少水？ (請用 <span className="text-amber-400 underline font-black text-xl">{p2Question.targetUnit}</span> 表示)
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-6 mt-2 flex-wrap max-w-full">
+                      {p2Question.cups.map((cup, idx) => (
+                        <div key={idx} className="relative">
+                          {p2Question.cups.length > 1 && (
+                            <span className="absolute -top-3 -left-3 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-md">
+                              {idx + 1}
+                            </span>
+                          )}
+                          <MeasuringCupSVG 
+                            capacity={cup.capacity} 
+                            ticks={cup.ticks} 
+                            waterLevel={cup.waterLevel} 
+                            displayUnit={cup.displayUnit} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {p2Question.cups.length > 1 && (
+                      <div className="mt-2 text-xs font-bold text-slate-400 bg-slate-800/80 px-4 py-1.5 rounded-full border border-slate-700 flex items-center gap-2">
+                        <SparklesIcon size={14} className="text-amber-400" />
+                        請把 {p2Question.cups.length} 個量杯的水量相加喔！
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-0 inset-x-0 bg-slate-900/90 backdrop-blur p-4 border-t border-slate-800 h-28 flex items-center justify-center">
+                    <div className="grid grid-cols-4 gap-2 w-full max-w-xl">
+                      {p2Question.options.map((option, idx) => (
+                        <button
+                          key={idx}
+                          disabled={p2Locked}
+                          onClick={() => handleAnswer(2, option)}
+                          className={`h-16 rounded-xl font-bold text-base md:text-lg border-2 shadow-md transition-all active:scale-95 duration-100 flex items-center justify-center ${
+                            p2Locked 
+                              ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                              : 'bg-blue-950/40 hover:bg-blue-900/30 border-blue-500/50 text-blue-200 hover:border-blue-400 active:bg-blue-500 active:text-slate-950'
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* 3. 遊戲結束/結算畫面 */}
+            {gameState === 'gameOver' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 z-20">
+                <div className="absolute w-[400px] h-[400px] bg-yellow-500/10 rounded-full blur-3xl"></div>
+                
+                <div className="max-w-md w-full bg-slate-900/90 backdrop-blur border-2 border-yellow-500/40 rounded-3xl p-8 shadow-2xl text-center relative z-10">
+                  <div className="inline-flex p-4 bg-yellow-500 text-slate-950 rounded-full shadow-lg mb-4 animate-bounce">
+                    <TrophyIcon size={56} />
+                  </div>
+                  
+                  <h1 className="text-3xl font-black text-yellow-400 mb-2">🎉 恭喜獲勝！ 🎉</h1>
+                  <p className="text-white text-2xl font-black mb-6">
+                    {winner} 贏得了比賽！
+                  </p>
+
+                  <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-4 mb-8">
+                    <h4 className="text-sm font-bold text-slate-400 mb-2">最終得分統計</h4>
+                    <div className="flex justify-around items-center text-lg">
+                      <div className="text-red-400 font-extrabold">紅隊: <span className="text-2xl text-white">{p1Score}分</span></div>
+                      <div className="text-slate-500 font-black">VS</div>
+                      <div className="text-blue-400 font-extrabold">藍隊: <span className="text-2xl text-white">{p2Score}分</span></div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => initGame()}
+                      className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black text-lg rounded-xl shadow transition-all active:scale-95 border-b-4 border-yellow-700"
+                    >
+                      再賽一局！
+                    </button>
+                    <button
+                      onClick={() => setGameState('menu')}
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl shadow transition-all active:scale-95 border border-slate-700"
+                    >
+                      返回主選單
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+        </div>
+      );
+    }
+
+    // 將組件渲染到 root
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
