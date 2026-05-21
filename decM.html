@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小數乘法大挑戰！</title>
+    <style>
+        :root {
+            --primary-color: #4da6ff;
+            --primary-hover: #0080ff;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --accent-color: #e67e22;
+            --accent-hover: #d35400;
+            --bg-color: #f0f8ff;
+            --card-bg: #ffffff;
+            --highlight-color: #e64980;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', 'Chalkboard SE', '微軟正黑體', 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-container {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #ff6b6b;
+            margin-bottom: 15px;
+            font-size: 28px;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background: #e0e0e0;
+            margin-bottom: 20px;
+        }
+
+        .question {
+            font-size: 28px;
+            margin: 20px 0;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .input-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        input[type="number"] {
+            font-size: 22px;
+            padding: 8px 15px;
+            width: 160px;
+            text-align: center;
+            border: 3px solid var(--primary-color);
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--primary-hover);
+        }
+
+        button {
+            font-size: 18px;
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .message {
+            font-size: 20px;
+            margin: 15px 0;
+            font-weight: bold;
+            min-height: 30px;
+        }
+
+        .correct { color: var(--success-color); }
+        .wrong { color: var(--danger-color); }
+
+        /* 直式教學動畫區域 */
+        .explanation-zone {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: #fff9db;
+            border-left: 6px solid #fcc419;
+            border-radius: 12px;
+            display: none;
+            text-align: left;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* ------------------ 嚴格直式排版 (小數點不佔格) ------------------ */
+        .math-box {
+            display: flex;
+            justify-content: center;
+            margin: 25px 0;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .vertical-math {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 36px;
+            font-weight: bold;
+            color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end; /* 靠右對齊 */
+            position: relative;
+        }
+
+        /* 每一行數字 */
+        .math-row {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            height: 48px;
+            position: relative;
+        }
+
+        /* 乘號定位在第二行的最左邊 */
+        .math-row .operator {
+            position: absolute;
+            left: -50px;
+            font-size: 32px;
+            color: #7f8c8d;
+        }
+
+        /* 數字格與小數點容器 */
+        .num-container {
+            display: flex;
+            align-items: center;
+        }
+
+        /* 單個數字寬度固定 */
+        .digit {
+            width: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        /* 小數點：懸浮在兩個數字之間，絕對定位，不佔用寬度 */
+        .decimal-point {
+            width: 0;
+            position: relative;
+            display: inline-block;
+            text-align: center;
+            color: #e74c3c;
+            font-size: 38px;
+            line-height: 0;
+            /* 將小數點往左微調到兩個數字的中間 */
+            left: -3px; 
+            z-index: 10;
+        }
+
+        /* 橫線 */
+        .math-line {
+            width: calc(100% + 15px);
+            border-bottom: 4px solid #333;
+            margin: 5px 0;
+        }
+
+        /* -------------------------------------------------- */
+        
+        .step-text {
+            font-size: 17px;
+            color: #495057;
+            margin-top: 15px;
+            min-height: 80px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px dashed #ced4da;
+            line-height: 1.6;
+        }
+        
+        .highlight {
+            color: var(--highlight-color);
+            font-weight: bold;
+        }
+
+        .highlight-blue {
+            color: #2980b9;
+            font-weight: bold;
+        }
+
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .control-panel h3 {
+            font-size: 20px;
+            color: #d35400;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .replay-btn {
+            background-color: var(--accent-color);
+            font-size: 15px;
+            padding: 6px 12px;
+            border-radius: 8px;
+        }
+        .replay-btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* 步驟控制按鈕區域 */
+        .step-nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+        }
+
+        .nav-btn:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            opacity: 0.6;
+        }
+
+        .step-counter {
+            font-size: 16px;
+            font-weight: bold;
+            color: #7f8c8d;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        /* 按鈕群組 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(3px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <h1>小數乘法大挑戰 🎯</h1>
+    <hr>
+    <div id="game-zone">
+        <div class="question" id="question-text">題目載入中...</div>
+        <div class="input-group">
+            <input type="number" id="user-answer" step="0.01" placeholder="輸入答案" onkeydown="if(event.key==='Enter') checkAnswer()">
+            <button onclick="checkAnswer()">提交答案</button>
+        </div>
+        
+        <div class="btn-group">
+            <button onclick="nextQuestion()" id="next-btn" style="display:none; background-color: #2ecc71;">下一題 ➡️</button>
+        </div>
+        
+        <div class="message" id="msg"></div>
+    </div>
+
+    <!-- 直式教學動畫區域 -->
+    <div class="explanation-zone" id="explanation">
+        <div class="control-panel">
+            <h3>💡 老師來解說：</h3>
+            <button class="replay-btn" id="replay-btn" onclick="goToStep(0)">🔄 重頭開始</button>
+        </div>
+        
+        <div class="math-box">
+            <div class="vertical-math" id="math-vertical">
+                <!-- 動態生成直式內容 -->
+            </div>
+        </div>
+        
+        <div class="step-text" id="step-msg"></div>
+
+        <!-- 學生手動控制按鈕 -->
+        <div class="step-nav-bar">
+            <button class="nav-btn" id="prev-step-btn" onclick="prevStep()">⬅️ 上一步</button>
+            <span class="step-counter" id="step-counter">步驟 1 / 1</span>
+            <button class="nav-btn" id="next-step-btn" onclick="nextStep()">下一步 ➡️</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let num1, num2, correctAnswer;
+let currentStep = 0;
+let explanationSteps = [];
+
+// 產生新題目
+function generateQuestion() {
+    // 隨機產生一位小數 (1.2 ~ 9.9)
+    num1 = (Math.floor(Math.random() * 88) + 12) / 10;
+    
+    // 50% 機率乘數為一位小數 (1.2 ~ 9.9)，50% 機率為個位數整數 (2 ~ 9)
+    if (Math.random() > 0.5) {
+        num2 = (Math.floor(Math.random() * 88) + 12) / 10;
+    } else {
+        num2 = Math.floor(Math.random() * 8) + 2;
+    }
+    
+    // 計算精準的正確解答
+    correctAnswer = parseFloat((num1 * num2).toFixed(2));
+    
+    document.getElementById("question-text").innerText = `${num1} × ${num2} = ？`;
+    document.getElementById("user-answer").value = "";
+    document.getElementById("user-answer").focus();
+    document.getElementById("msg").innerText = "";
+    document.getElementById("explanation").style.display = "none";
+    document.getElementById("next-btn").style.display = "none";
+}
+
+// 驗證答案
+function checkAnswer() {
+    const userAns = parseFloat(document.getElementById("user-answer").value);
+    const msgDiv = document.getElementById("msg");
+    
+    if (isNaN(userAns)) {
+        msgDiv.className = "message wrong";
+        msgDiv.innerText = "請先輸入答案喔！";
+        return;
+    }
+
+    if (Math.abs(userAns - correctAnswer) < 0.0001) {
+        msgDiv.className = "message correct";
+        msgDiv.innerText = "🎉 太棒了！你答對了！";
+        document.getElementById("next-btn").style.display = "inline-block";
+    } else {
+        msgDiv.className = "message wrong";
+        msgDiv.innerText = "哎呀，算錯了！看看下面的直式是怎麼算的：";
+        showExplanation();
+        document.getElementById("next-btn").style.display = "inline-block";
+    }
+}
+
+// 核心對齊算法：將數字與小數點拆解為不佔格的 HTML 直式結構
+function buildRowHTML(numberStr, hasOperator = false, highlightColor = null) {
+    const parts = numberStr.split('.');
+    const integerPart = parts[0] || '';
+    const decimalPart = parts[1] || '';
+    
+    let html = `<div class="math-row fade-in">`;
+    if (hasOperator) {
+        html += `<span class="operator">×</span>`;
+    }
+    
+    html += `<div class="num-container">`;
+    
+    // 渲染整數部分數字
+    for (let i = 0; i < integerPart.length; i++) {
+        const style = highlightColor ? `style="color: ${highlightColor};"` : '';
+        html += `<span class="digit" ${style}>${integerPart[i]}</span>`;
+    }
+    
+    // 渲染不佔格的小數點 (如果存在)
+    if (parts.length > 1) {
+        html += `<span class="decimal-point">.</span>`;
+        
+        // 渲染小數部分數字
+        for (let i = 0; i < decimalPart.length; i++) {
+            const style = highlightColor ? `style="color: ${highlightColor};"` : '';
+            html += `<span class="digit" ${style}>${decimalPart[i]}</span>`;
+        }
+    }
+    
+    html += `</div></div>`;
+    return html;
+}
+
+// 建立步驟與內容
+function showExplanation() {
+    const expZone = document.getElementById("explanation");
+    expZone.style.display = "block";
+    
+    // 準備計算過程數據
+    const str1 = num1.toString();
+    const str2 = num2.toString();
+    
+    // 去除小數點的整數代表
+    const int1 = parseInt(str1.replace('.', ''));
+    const int2 = parseInt(str2.replace('.', ''));
+    
+    // 取得小數位數
+    const decimalPlaces1 = (str1.split('.')[1] || '').length;
+    const decimalPlaces2 = (str2.split('.')[1] || '').length;
+    const totalDecimalPlaces = decimalPlaces1 + decimalPlaces2;
+    
+    // 兩數相乘的純整數運算過程
+    const digitsOf2 = int2.toString();
+    const hasMultipleSteps = digitsOf2.length > 1; // 乘數是否為兩位數以上
+    
+    // 基礎行：被乘數、乘數、橫線
+    const row1 = buildRowHTML(str1);
+    const row2 = buildRowHTML(str2, true);
+    const line = `<div class="math-line"></div>`;
+    
+    explanationSteps = [];
+    
+    // 步驟 1：對齊
+    explanationSteps.push({
+        text: `<strong>第一步：靠右對齊數字。</strong><br>寫小數乘法直式時，要把數字【靠右對齊】，這時候先不用管小數點有沒有對上喔！`,
+        html: row1 + row2 + line
+    });
+
+    if (hasMultipleSteps) {
+        // 乘數為兩位數（例如 4.3，拆為 3 與 4）
+        const onesDigit = parseInt(digitsOf2[1]); // 個位數字 (如 3)
+        const tensDigit = parseInt(digitsOf2[0]); // 十位數字 (如 4)
+        
+        const partialProduct1 = int1 * onesDigit; // 73 * 3 = 219
+        const partialProduct2 = int1 * tensDigit; // 73 * 4 = 292 (代表 2920)
+        const totalIntSum = partialProduct1 + (partialProduct2 * 10); // 219 + 2920 = 3139
+        
+        const rowPart1 = buildRowHTML(partialProduct1.toString(), false, '#e67e22');
+        const rowPart2 = buildRowHTML((partialProduct2 * 10).toString(), false, '#2980b9');
+        
+        // 步驟 2：算個位乘積
+        explanationSteps.push({
+            text: `<strong>第二步：計算個位數的乘積。</strong><br>把被乘數當作整數，乘上乘數的個位數：<br><span class="highlight">${int1} × ${onesDigit} = ${partialProduct1}</span>。寫在第一層。`,
+            html: row1 + row2 + line + rowPart1
+        });
+        
+        // 步驟 3：算十位乘積
+        explanationSteps.push({
+            text: `<strong>第三步：計算十位數的乘積。</strong><br>乘上十位數的 ${tensDigit}：<br><span class="highlight-blue">${int1} × ${tensDigit}0 = ${partialProduct2 * 10}</span>。記得寫在第二層，並且要靠左對齊十位（個位補 0）。`,
+            html: row1 + row2 + line + rowPart1 + rowPart2
+        });
+        
+        // 步驟 4：相加
+        const sumRow = buildRowHTML(totalIntSum.toString());
+        explanationSteps.push({
+            text: `<strong>第四步：將兩層的結果相加。</strong><br>將這兩層的結果加起來：<br>${partialProduct1} + ${partialProduct2 * 10} = <span class="highlight">${totalIntSum}</span>。`,
+            html: row1 + row2 + line + rowPart1 + rowPart2 + line + sumRow
+        });
+        
+    } else {
+        // 乘數為一位數（例如 3）
+        const totalIntSum = int1 * int2;
+        const sumRow = buildRowHTML(totalIntSum.toString());
+        
+        explanationSteps.push({
+            text: `<strong>第二步：當作整數來計算。</strong><br>先不管小數點，直接當作整數來乘：<br><span class="highlight">${int1} × ${int2} = ${totalIntSum}</span>。`,
+            html: row1 + row2 + line + sumRow
+        });
+    }
+    
+    // 步驟：數小數位數
+    explanationSteps.push({
+        text: `<strong>第 ${hasMultipleSteps ? '五' : '三'} 步：數數看總共有幾位小數。</strong><br>「${num1}」有 <span class="highlight">${decimalPlaces1}</span> 位小數，「${num2}」有 <span class="highlight">${decimalPlaces2}</span> 位小數，兩個合起來總共是 <span class="highlight">${totalDecimalPlaces}</span> 位小數。`,
+        html: explanationSteps[explanationSteps.length - 1].html // 保持上一步的圖形
+    });
+    
+    // 步驟：點上小數點
+    const finalAnsWithPoint = correctAnswer.toFixed(totalDecimalPlaces);
+    const finalRow = buildRowHTML(finalAnsWithPoint, false, '#e64980');
+    
+    // 組裝最後完整的 HTML
+    let finalHtmlSequence = row1 + row2 + line;
+    if (hasMultipleSteps) {
+        const onesDigit = parseInt(digitsOf2[1]);
+        const tensDigit = parseInt(digitsOf2[0]);
+        finalHtmlSequence += buildRowHTML((int1 * onesDigit).toString(), false);
+        finalHtmlSequence += buildRowHTML((int1 * tensDigit * 10).toString(), false);
+        finalHtmlSequence += line;
+    }
+    finalHtmlSequence += finalRow;
+
+    explanationSteps.push({
+        text: `<strong>最後一步：點上小數點！</strong><br>從整數答案的最右邊開始向左數 <span class="highlight">${totalDecimalPlaces}</span> 位，點上紅色的小數點！大功告成，答案就是 <span class="highlight" style="font-size: 22px;">${correctAnswer}</span> 🎉`,
+        html: finalHtmlSequence
+    });
+
+    // 預設跳到第 0 步 (第一步)
+    goToStep(0);
+}
+
+// 跳轉到指定步驟
+function goToStep(index) {
+    if (index < 0 || index >= explanationSteps.length) return;
+    
+    currentStep = index;
+    const mathVertical = document.getElementById("math-vertical");
+    const stepMsg = document.getElementById("step-msg");
+    const stepCounter = document.getElementById("step-counter");
+    
+    // 更新直式內容與文字說明
+    mathVertical.innerHTML = explanationSteps[currentStep].html;
+    stepMsg.innerHTML = explanationSteps[currentStep].text;
+    
+    // 更新步數指示文字
+    stepCounter.innerText = `步驟 ${currentStep + 1} / ${explanationSteps.length}`;
+    
+    // 更新控制按鈕的可點擊狀態
+    document.getElementById("prev-step-btn").disabled = (currentStep === 0);
+    document.getElementById("next-step-btn").disabled = (currentStep === explanationSteps.length - 1);
+}
+
+// 前進下一步
+function nextStep() {
+    if (currentStep < explanationSteps.length - 1) {
+        goToStep(currentStep + 1);
+    }
+}
+
+// 後退上一步
+function prevStep() {
+    if (currentStep > 0) {
+        goToStep(currentStep - 1);
+    }
+}
+
+function nextQuestion() {
+    generateQuestion();
+}
+
+// 網頁載入後自動開始首題
+window.onload = function() {
+    generateQuestion();
+};
+</script>
+
+</body>
+</html>
